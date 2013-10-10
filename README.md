@@ -1,0 +1,4 @@
+smush
+=====
+
+Manage a SmushBox
