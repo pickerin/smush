@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # smush.py - Manage and Interface a SmushBox
-import argparse, sys, urllib2
+import argparse, re, sys, urllib2
 __author__ = 'RobPickering.com'
  
 # Define functions
@@ -32,7 +32,7 @@ group = parser.add_mutually_exclusive_group()
 text_group = group.add_argument_group()
 text_group.add_argument('-t','--text',help='Send SMS message',action='store_true')
 text_group.add_argument('-n','--number',help='Recipient mobile number',required=False)
-text_group.add_argument('-m','--message',help='Text message to send, use + instead of space',required=False)
+text_group.add_argument('-m','--message',help='Text message to send, use quoted string',required=False)
 group.add_argument('-i','--incoming',help='SmushBox incoming messages',action='store_true')
 group.add_argument('-o','--outgoing',help='SmushBox outgoing messages',action='store_true')
 group.add_argument('-c','--contacts',help='SmushBox phonebook',action='store_true')
@@ -56,8 +56,11 @@ if args.password:
 
 # If message is defined, then user must want to send a message
 if args.text:
-   # Send message url
-   url = 'http://'+args.host+'/messagelist/send?number='+args.number+'&message='+args.message+'&username='+username+'&password='+password
+   # Replace spaces in the Text Message with Plus signs
+   message = re.sub('[ ]', '+', args.message)
+   # Text Message is limited to 160 characters (at this time)
+   message = (message[:157] + '...') if len(message) > 160 else message
+   url = 'http://'+args.host+'/messagelist/send?number='+args.number+'&message='+message+'&username='+username+'&password='+password   
    smushBox(url)
    
 if args.incoming:
