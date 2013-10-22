@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # smush.py - Manage and Interface a SmushBox
-import argparse, re, sys, urllib2
+import argparse, re, json, sys, urllib2
 __author__ = 'RobPickering.com'
  
 # Define functions
@@ -18,8 +18,11 @@ def handleError( e ):
 # Connect to SmushBox
 def smushBox(url):
    try:
-     result = urllib2.urlopen(url)
-     print result.read()
+     result = json.load(urllib2.urlopen(url))
+     if result['success']:
+        return result
+     else:
+        print result['errors']
    except urllib2.URLError, e:
      handleError(e)
    sys.exit()
@@ -62,16 +65,33 @@ if args.text:
    message = (message[:157] + '...') if len(message) > 160 else message
    url = 'http://'+args.host+'/messagelist/send?number='+args.number+'&message='+message+'&username='+username+'&password='+password   
    smushBox(url)
+   sys.exit()
    
 if args.incoming:
-   url = 'http://'+args.host+'/messagelist/list/incoming/all&username='+username+'&password='+password
-   smushBox(url)
-
+   url = 'http://'+args.host+'/messagelist/list/incoming/al?&username='+username+'&password='+password
+   result = smushBox(url)
+   print "#\tPhone Number\tDate\t\t\tRead\tMessage"
+   for message in result['message']:
+      print message['phone_id'].encode('utf-8'),"\t",message['number'].encode('utf-8'),"\t",message['format_time'].encode('utf-8'),"\t",message['read'],"\t",message['message'].encode('utf-8')
+   sys.exit()
+   
 if args.outgoing:
-   url = 'http://'+args.host+'/messagelist/list/outgoing/all&username='+username+'&password='+password
-   smushBox(url)
-
+   url = 'http://'+args.host+'/messagelist/list/outgoing/all?username='+username+'&password='+password
+   result = smushBox(url)
+   print "#\tMessage ID\tPhone Number\tDate\t\t\tMessage"
+   for message in result['message']:
+      print message['phone_id'].encode('utf-8'),"\t",message['message_id'].encode('utf-8'),"\t\t",message['number'].encode('utf-8'),"\t",message['format_sent'].encode('utf-8'),"\t",message['message'].encode('utf-8')
+   sys.exit()
+   
 if args.contacts:
-   url = 'http://'+args.host+'/phonebook/list&username='+username+'&password='+password
+   url = 'http://'+args.host+'/phonebook/list?username='+username+'&password='+password
+   result = smushBox(url)
+   print "#\tPhone Number\tDisabled\tGroup"
+   for contact in result['message']:
+      print contact['phone_id'].encode('utf-8'),"\t",contact['number'].encode('utf-8'),"\t",contact['disabled'].encode('utf-8'),"\t\t",contact['group_member']
+   sys.exit()
+   
+if args.deleteout:
+   url = 'http://'+args.host+'/messagelist/delete/outgoing/all?username='+username+'&password='+password
    smushBox(url)
-
+   sys.exit()
