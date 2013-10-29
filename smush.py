@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # smush.py - Manage and Interface a SmushBox
-import argparse, re, json, sys, urllib2
+import argparse, re, json, sys, urllib2, time
+from datetime import datetime
+from datetime import timedelta
 __author__ = 'RobPickering.com'
  
 # Define functions
@@ -27,20 +29,42 @@ def smushBox(url):
      handleError(e)
    sys.exit()
 
+# Credit to SmushMobile for the Javascript version of this code
+def niceTime( totalSec ):
+	days = int( totalSec / (3600 * 24) )
+	hours = int( totalSec / 3600 ) % 24
+	minutes = int( totalSec / 60 ) % 60
+	seconds = totalSec % 60
 
+	result = ""
+	if (days != 0):
+		result = "%s" % days + " day" + ("s" if days > 1 else "") + ", %s" % hours + " hour" + ("s" if hours > 1 else "") + ", %s" % minutes + " minute" + ("s" if minutes > 1 else "") + ", %s" % seconds + " second" + ("s" if seconds > 1 else "")
+	elif (hours != 0):
+		result = "%s" % hours + " hour" + ("s" if hours > 1 else "") + ", %s" % minutes + " minute" + ("s" if minutes > 1 else "") + ", %s" % seconds + " second" + ("s" if seconds > 1 else "")
+	elif (minutes != 0):
+		result = "%s" % minutes + " minute" + ("s" if minutes > 1 else "") + ", %s" % seconds + " second" + ("s" if seconds > 1 else "")
+	else:
+		result = "%s" % seconds + " second" + ("s" if seconds > 1 else "")
+	return result
+	
 # Add valid arguments to application
-parser = argparse.ArgumentParser(description='Manage a SmushBox by RobPickering.com.')
+parser = argparse.ArgumentParser(description='Manage a SmushBox by RobPickering.com.',epilog='Example: smush.py 172.31.20.5 -t -n 6145551212 -m "Testing 123"')
 parser.add_argument('host',help='SmushBox IP or FQDN')
 group = parser.add_mutually_exclusive_group()
 text_group = group.add_argument_group()
 text_group.add_argument('-t','--text',help='Send SMS message',action='store_true')
 text_group.add_argument('-n','--number',help='Recipient mobile number',required=False)
 text_group.add_argument('-m','--message',help='Text message to send, use quoted string',required=False)
-group.add_argument('-i','--incoming',help='SmushBox incoming messages',action='store_true')
-group.add_argument('-o','--outgoing',help='SmushBox outgoing messages',action='store_true')
-group.add_argument('-c','--contacts',help='SmushBox phonebook',action='store_true')
-parser.add_argument('-u','--username',help='SmushBox username',required=False)
-parser.add_argument('-p','--password',help='SmushBox password',required=False)
+group.add_argument('-i','--incoming',help='Display all incoming messages',action='store_true')
+group.add_argument('-o','--outgoing',help='Display all outgoing messages',action='store_true')
+group.add_argument('-c','--contacts',help='Display phonebook',action='store_true')
+group.add_argument('-cu','--checkupdate',help='Check for available update',action='store_true')
+group.add_argument('-s','--status',help='Retrieve SmushBox status',action='store_true')
+group.add_argument('-do','--deleteout',help='Deletes message DELETEOUT (# or all) -- Not implemented yet',required=False)
+group.add_argument('-v', '--version', action='version', version='%(prog)s 1.2')
+authgroup = parser.add_argument_group('authentication')
+authgroup.add_argument('-u','--username',help='SmushBox username, defaults to "smushbox"',required=False)
+authgroup.add_argument('-p','--password',help='SmushBox password, defaults to "smushbox"',required=False)
 
 # Define defaults (will be overridden by options above)
 username = "smushbox"
@@ -57,40 +81,94 @@ if args.username:
 if args.password:
    password = args.password
 
-# If message is defined, then user must want to send a message
+# Send a Text (SMS) Message
 if args.text:
    # Replace spaces in the Text Message with Plus signs
    message = re.sub('[ ]', '+', args.message)
    # Text Message is limited to 160 characters (at this time)
    message = (message[:157] + '...') if len(message) > 160 else message
    url = 'http://'+args.host+'/messagelist/send?number='+args.number+'&message='+message+'&username='+username+'&password='+password   
-   smushBox(url)
+   result = smushBox(url)
+   if result['success']:
+      print result['message']
+   else: 
+      print result['errors']
    sys.exit()
-   
+
+# List incoming messages   
 if args.incoming:
    url = 'http://'+args.host+'/messagelist/list/incoming/al?&username='+username+'&password='+password
    result = smushBox(url)
-   print "#\tPhone Number\tDate\t\t\tRead\tMessage"
-   for message in result['message']:
-      print message['phone_id'].encode('utf-8'),"\t",message['number'].encode('utf-8'),"\t",message['format_time'].encode('utf-8'),"\t",message['read'],"\t",message['message'].encode('utf-8')
+   if result['success']:
+      print "#\tPhone Number\tDate\t\t\tRead\tMessage"
+      for message in result['message']:
+         print "%s\t%s\t%s\t%s\t%s" % (message['phone_id'],message['number'],message['format_time'],message['read'],message['message'])
+   else: 
+      print result['errors']
    sys.exit()
    
+# List outgoing messages   
 if args.outgoing:
    url = 'http://'+args.host+'/messagelist/list/outgoing/all?username='+username+'&password='+password
    result = smushBox(url)
-   print "#\tMessage ID\tPhone Number\tDate\t\t\tMessage"
-   for message in result['message']:
-      print message['phone_id'].encode('utf-8'),"\t",message['message_id'].encode('utf-8'),"\t\t",message['number'].encode('utf-8'),"\t",message['format_sent'].encode('utf-8'),"\t",message['message'].encode('utf-8')
+   if result['success']:
+      print "#\tMessage ID\tPhone Number\tDate\t\t\tMessage"
+      for message in result['message']:
+         print "%s\t%s\t\t%s\t%s\t%s" % (message['phone_id'],message['message_id'],message['number'],message['format_sent'],message['message'])
+   else: 
+      print result['errors']
    sys.exit()
-   
+
+# List contacts   
 if args.contacts:
    url = 'http://'+args.host+'/phonebook/list?username='+username+'&password='+password
    result = smushBox(url)
-   print "#\tPhone Number\tDisabled\tGroup"
-   for contact in result['message']:
-      print contact['phone_id'].encode('utf-8'),"\t",contact['number'].encode('utf-8'),"\t",contact['disabled'].encode('utf-8'),"\t\t",contact['group_member']
+   if result['success']:
+      print "#\tPhone Number\tDisabled\tGroup"
+      for contact in result['message']:
+         print "%s\t%s\t%s\t\t%s" % (contact['phone_id'],contact['number'],contact['disabled'],contact['group_member'])
+      else: 
+         print result['errors']
    sys.exit()
-   
+
+# Check for available update   
+if args.checkupdate:
+   statusUrl = 'http://'+args.host+'/system/systemstats?username='+username+'&password='+password
+   status = smushBox(statusUrl)
+   if status['success']:
+      url = 'http://'+args.host+'/system/checkforfirmwareupdate?username='+username+'&password='+password
+      result = smushBox(url)
+      if result['success']:
+         print "System version:   ",status['message']['version']
+         print "Current version:  ",result['message']['version']
+         if float(status['message']['version']) == float(result['message']['version']):
+            print "No update available."
+         else:
+            print "Update available: ",result['message']['URL']
+      else: 
+         print result['errors']
+         sys.exit()
+   else: 
+      print result['errors']
+      sys.exit()
+
+# Provide SmushBox status   
+if args.status:
+   url = 'http://'+args.host+'/system/systemstats?username='+username+'&password='+password
+   result = smushBox(url)
+   if result['success']:
+      print "Uptime:        %s" % niceTime(int(result['message']['uptime']))
+      print "Time Zone:    ",result['message']['timezone_id']
+      print "System Time:  ",result['message']['system_time']
+      print "Local Time:   ",result['message']['local_time']
+      print "OS Version:    v%s" % result['message']['version']
+      print "Signal Level:  %.2f%%" % (float(result['message']['signal_level']) / 0.32)
+      print "IMEI:         ",result['message']['IMEI']
+   else: 
+      print result['errors']
+   sys.exit()   
+
+# Delete outgoing messages   
 if args.deleteout:
    url = 'http://'+args.host+'/messagelist/delete/outgoing/all?username='+username+'&password='+password
    smushBox(url)
