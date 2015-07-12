@@ -1,0 +1,8 @@
+# Nagios command definition, utilizing smush.py to send SMS pages for alerts
+# Must have CONTACTPAGER defined on Contact records
+# Change 127.0.0.1 to be the IP address of the SmushBox
+# 'notify-host-by-sms' command definition
+define command{
+        command_name    notify-host-by-sms
+        command_line    /usr/local/bin/smush.py 127.0.0.1 -t -n $CONTACTPAGER$ -m "$NOTIFICATIONTYPE$ notice on $HOSTNAME$ is $HOSTSTATE$ at $LONGDATETIME$"
+        }
